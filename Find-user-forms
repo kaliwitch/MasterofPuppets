@@ -1,0 +1,225 @@
+Puppeteer- Find user input forms from Domain
+
+
+
+
+
+
+const puppeteer = require("puppeteer-extra");
+const fs = require("fs");
+const path = require("path");
+const StealthPlugin = require("puppeteer-extra-plugin-stealth");
+
+puppeteer.use(StealthPlugin());
+
+const domain = "wordpress.com";
+const pathsToCheck = [
+  "/login",
+  "/signin",
+  "/sign-in",
+  "/auth",
+  "/authenticate",
+  "/login-form",
+  "/member/login",
+  "/user/login",
+  "/users/login",
+  "/admin/login",
+  "/admin/signin",
+  "/admin-sign-in",
+  "/admin/authenticate",
+  "/admin/auth",
+  "/admin/access",
+  "/adminpanel/login",
+  "/admin_area/login",
+  "/admin_login",
+  "/account/login",
+  "/account/signin",
+  "/account-sign-in",
+  "/account/authenticate",
+  "/account/access",
+  "/myaccount/login",
+  "/myaccount/signin",
+  "/myaccount-sign-in",
+  "/profile/login",
+  "/entry",
+  "/welcome",
+  "/start",
+  "/access",
+  "/portal",
+  "/dashboard",
+  "/secure/login",
+  "/secure/signin",
+  "/secure/auth",
+  "/login-page",
+  "/signin-page",
+  "/logincenter",
+  "/logon",
+  "/login-area",
+  "/signin-area",
+  "/login-screen",
+  "/login.jsp",
+  "/login.html",
+  "/login.php",
+  "/login.do",
+  "/signin.jsp",
+  "/signin.html",
+  "/signin.php",
+  "/signin.do",
+  "/auth.jsp",
+  "/auth.html",
+  "/auth.php",
+  "/auth.do",
+  "/login.action",
+  "/login.aspx",
+  "/login.axd",
+  "/webadmin/login",
+  "/adminlogin",
+  "/backend/login",
+  "/admin/auth",
+  "/userauth/login",
+  "/staff/login",
+  "/staff/signin",
+  "/support/login",
+  "/private/login",
+  "/hidden/login",
+  "/secret/login",
+  "/hidden_area/login",
+  "/private_area/login",
+  "/restricted/login",
+  "/hidden/auth",
+  "/private/auth",
+  "/secret/auth",
+  "/hidden_access",
+  "/secure_area/login",
+  "/secure/auth",
+  "/hidden_login",
+  "/user_entry",
+  "/admin_access",
+  "/access_admin",
+  "/user_portal",
+  "/admin_portal",
+  "/auth_portal",
+  "/signin_area",
+  "/user_auth",
+  "/admin_auth",
+  "/user_access",
+  "/admin_signin",
+  "/loginbox",
+  "/logincenter",
+  "/login_form",
+  "/login_user",
+  "/signon",
+  "/signon_form",
+  "/login_page",
+  "/user_signin",
+  "/admin_signin",
+  "/admin_login_form",
+  "/login_admin",
+  "/access_login",
+  "/p/login",
+  "/auth_form",
+  "/admin_auth",
+  "/secure_login",
+  "/user_login_form",
+  "/login_1",
+  "/sign_in_page",
+  "/login_x",
+  "/access_form",
+  "/db",
+  "/database",
+  "/sql",
+  "/api/db",
+  "/api/sql",
+  "/admin/db",
+  "/admin/database",
+  "/admin/sql",
+  "/dbadmin",
+  "/databaseadmin",
+  "/api/login",
+  "/api/auth",
+  "/api/user",
+  "/api/v1/login",
+  "/api/v1/auth",
+  "/api/v1/user",
+  "/mongo",
+  "/mongodb",
+  "/mysql",
+  "/mysqladmin",
+  "/postgres",
+  "/pgsql",
+  "/mssql",
+  "/sqlserver",
+  "/backend/db",
+  "/backend/login",
+  "/backend/auth",
+];
+
+const resultsFilePath = path.join(__dirname, "You_have_mail.txt");
+
+const checkForInputFormsAndStatus = async (page, url) => {
+  try {
+    const response = await page.goto(url, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
+    });
+
+    if (response.status() === 404) {
+      return { found: false, statusCode: 404 };
+    }
+
+    const inputFormsExist = await page.evaluate(() => {
+      const forms = document.querySelectorAll("form");
+      if (forms.length === 0) return false;
+
+      return Array.from(forms).some((form) => {
+        return (
+          form.querySelectorAll(
+            'input[type="text"], input[type="password"], input[type="email"], input[type="number"], input[type="tel"], textarea'
+          ).length > 0
+        );
+      });
+    });
+
+    return { found: inputFormsExist, statusCode: response.status() };
+  } catch (error) {
+    console.error(`Error navigating to ${url}:`, error);
+    return { found: false, statusCode: null };
+  }
+};
+
+const writeResultToFile = (result) => {
+  const emoji = "🥷💻";
+  const text = `${emoji} ${result}\n`;
+  fs.appendFile(resultsFilePath, text, (err) => {
+    if (err) {
+      console.error("Error writing to file:", err);
+    }
+  });
+};
+
+(async () => {
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  });
+  const page = await browser.newPage();
+
+  fs.writeFile(resultsFilePath, "", (err) => {
+    if (err) {
+      console.error("Error clearing file:", err);
+    }
+  });
+
+  for (const path of pathsToCheck) {
+    const url = `https://${domain}${path}`;
+    console.log(`Checking ${url}...`);
+    const { found, statusCode } = await checkForInputFormsAndStatus(page, url);
+    if (found && statusCode !== 404) {
+      const result = `Input form found at ${url}`;
+      console.log(result);
+      writeResultToFile(result);
+    }
+  }
+
+  await browser.close();
+})();
