@@ -11,32 +11,32 @@ const axios = require("axios");
 
 
 (async () => {
-  // Launch Puppeteer
+
   const browser = await puppeteer.launch();
   const page = await browser.newPage();
 
-  // Navigate to the website
+  
   const url = "https://www.example.com/";
   await page.goto(url, { waitUntil: "networkidle0" });
 
-  // Extract the HTML
+
   const html = await page.content();
 
-  // Extract inline styles and external CSS links
+ 
   const styles = await page.evaluate(() => {
     let css = "";
-    // Inline <style> tags
+  
     document.querySelectorAll("style").forEach((styleTag) => {
       css += styleTag.innerHTML;
     });
-    // External <link> tags with rel="stylesheet"
+    
     document.querySelectorAll('link[rel="stylesheet"]').forEach((linkTag) => {
       css += `@import url('${linkTag.href}');\n`;
     });
     return css;
   });
 
-  // Extract inline scripts
+ 
   const scripts = await page.evaluate(() => {
     let js = "";
     document.querySelectorAll("script").forEach((scriptTag) => {
@@ -47,7 +47,6 @@ const axios = require("axios");
     return js;
   });
 
-  // Define paths to save the files
   const outputDir = "./scraped-site";
   if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
 
@@ -57,6 +56,6 @@ const axios = require("axios");
 
   console.log("Website saved successfully! 🥷💻");
 
-  // Close the browser
+
   await browser.close();
 })();
