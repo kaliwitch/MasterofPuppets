@@ -1,0 +1,73 @@
+Puppeteer- Save all subdomain links
+
+const puppeteer = require("puppeteer-extra");
+const fs = require("fs");
+const path = require("path");
+const StealthPlugin = require("puppeteer-extra-plugin-stealth");
+
+
+puppeteer.use(StealthPlugin());
+
+
+const domain = "geeksforgeeks.org"; // Change this to the domain you are targeting
+const subdomains = [];
+
+
+const whoisFilePath = path.join(__dirname, "ALL-LINKS.txt");
+
+
+const saveToFile = (filePath, data) => {
+  fs.appendFile(filePath, data + "\n", (err) => {
+    if (err) {
+      console.error(`Error writing to file ${filePath}:`, err);
+    }
+  });
+};
+
+const extractLinks = async (page) => {
+  return page.evaluate(() => {
+    const links = Array.from(document.querySelectorAll("a")).map(
+      (anchor) => anchor.href
+    );
+    return links.filter((link) => link.includes(window.location.hostname));
+  });
+};
+
+const scrapeDomainInfo = async (page, url) => {
+  await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
+
+  const links = await extractLinks(page);
+  links.forEach((link) => saveToFile(whoisFilePath, `Link found: ${link}`));
+
+  const pageTitle = await page.title();
+  const pageMetaDescription = await page.evaluate(() => {
+    const metaDescription = document.querySelector('meta[name="description"]');
+    return metaDescription
+      ? metaDescription.content
+      : "No description available";
+  });
+
+  saveToFile(whoisFilePath, `Page Title: ${pageTitle}`);
+  saveToFile(whoisFilePath, `Page Meta Description: ${pageMetaDescription}`);
+};
+
+(async () => {
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  });
+
+  const page = await browser.newPage();
+
+  fs.writeFile(whoisFilePath, "", (err) => {
+    if (err) {
+      console.error("Error clearing file:", err);
+    }
+  });
+
+  const mainUrl = `https://${domain}`;
+  console.log(`Scraping ${mainUrl}...`);
+  await scrapeDomainInfo(page, mainUrl);
+
+  await browser.close();
+})();
