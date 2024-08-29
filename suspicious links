@@ -46,7 +46,7 @@ puppeteer.use(StealthPlugin());
     return match ? match[1] : null;
   });
 
-  const authenticDomains = ["paladinartists.com", "example.net", "example.io"];
+  const authenticDomains = ["example.com", "example.net", "example.io"];
 
   const authenticLinks = allLinks.filter((link, index) => {
     const domain = domains[index];
@@ -66,7 +66,7 @@ puppeteer.use(StealthPlugin());
 
   const externalLinks = allLinks.filter((link, index) => {
     const domain = domains[index];
-    return domain !== "paladinartists.com";
+    return domain !== "example.com";
   });
 
   const resultsDir = path.join(__dirname, "results");
