@@ -1,0 +1,93 @@
+// This project will scan all links and alt text, filing the results into a folder, catagorized bytheir authenticity 
+  and suspicious link activity.
+
+
+const puppeteer = require("puppeteer-extra");
+const StealthPlugin = require("puppeteer-extra-plugin-stealth");
+const urlRegex = require("url-regex");
+const fs = require("fs");
+const path = require("path");
+
+// Use the stealth plugin
+puppeteer.use(StealthPlugin());
+
+(async () => {
+  const browser = await puppeteer.launch({ headless: true });
+  const page = await browser.newPage();
+  await page.goto("https://example.ca");
+
+  const links = await page.$$eval("a", (anchors) => {
+    return anchors.map((anchor) => ({
+      href: anchor.href,
+      text: anchor.textContent,
+      alt: anchor.getAttribute("alt"),
+    }));
+  });
+
+  const altLinks = await page.$$eval("img", (images) => {
+    return images
+      .map((image) => {
+        if (image.hasAttribute("alt") && image.hasAttribute("src")) {
+          return {
+            href: image.src,
+            text: image.alt,
+            alt: image.alt,
+          };
+        }
+        return null;
+      })
+      .filter((link) => link !== null);
+  });
+
+  const allLinks = [...links, ...altLinks];
+
+  const domains = allLinks.map((link) => {
+    const match = urlRegex({ exact: true }).exec(link.href);
+    return match ? match[1] : null;
+  });
+
+  const authenticDomains = ["paladinartists.com", "example.net", "example.io"];
+
+  const authenticLinks = allLinks.filter((link, index) => {
+    const domain = domains[index];
+    return authenticDomains.includes(domain);
+  });
+
+  const suspiciousKeywords = ["login", "password", "authenticate"];
+
+  const suspiciousLinks = allLinks
+    .filter((link) => {
+      return suspiciousKeywords.some((keyword) => link.href.includes(keyword));
+    })
+    .map((link) => ({
+      ...link,
+      reason: "Contains suspicious keyword in the URL",
+    }));
+
+  const externalLinks = allLinks.filter((link, index) => {
+    const domain = domains[index];
+    return domain !== "paladinartists.com";
+  });
+
+  const resultsDir = path.join(__dirname, "results");
+
+  if (!fs.existsSync(resultsDir)) {
+    fs.mkdirSync(resultsDir);
+  }
+
+  function saveToFile(filename, data) {
+    fs.writeFileSync(
+      path.join(resultsDir, filename),
+      JSON.stringify(data, null, 2),
+      "utf8"
+    );
+  }
+
+  saveToFile("authentic-links.json", authenticLinks);
+  saveToFile("suspicious-links.json", suspiciousLinks);
+  saveToFile("external-links.json", externalLinks);
+
+  console.log('Results saved to the "results" folder.');
+
+  await browser.close();
+})();
