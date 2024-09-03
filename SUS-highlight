@@ -1,0 +1,100 @@
+-Find suspicious http that redirects to https
+-Highlight in Neon Pink the SUS link (http)
+-Highlight the redirect chain in Neon Green (https)
+- Any and all http redirections remove valid tls handshakes, ANY AND ALL HTTP is SUS... PERIOD!!!
+
+<AWAIT, FIND, CATALOG, Now go puppet and scrape the requests>.
+
+
+
+const puppeteer = require("puppeteer");
+const axios = require("axios");
+const fs = require("fs");
+
+const targetUrl = "https://example.com/";
+const suspiciousFile = "suspicious_links.txt";
+
+const brightPink = "\x1b[35;1m";
+const brightGreen = "\x1b[32;1m";
+const reset = "\x1b[0m";
+
+async function checkUrl(urlToCheck) {
+  try {
+    const response = await axios.head(urlToCheck, { validateStatus: null });
+    return response.status >= 200 && response.status < 400;
+  } catch (error) {
+    return false;
+  }
+}
+
+async function checkRedirect(urlToCheck) {
+  try {
+    const response = await axios.get(urlToCheck, {
+      maxRedirects: 30,
+      validateStatus: null,
+    });
+    if (response.request.res.responseUrl !== urlToCheck) {
+      return response.request.res.responseUrl;
+    }
+    return null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function isSuspiciousSubdomain(domain, subdomain) {
+  return subdomain && subdomain !== domain;
+}
+
+(async () => {
+  const browser = await puppeteer.launch({ headless: true });
+  const page = await browser.newPage();
+
+  await page.goto(targetUrl);
+
+  const links = await page.evaluate(() => {
+    return Array.from(document.querySelectorAll("a")).map((a) => a.href);
+  });
+
+  const suspiciousLinks = [];
+  const suspiciousRedirects = [];
+
+  for (const link of links) {
+    const parsedUrl = new URL(link);
+    const subdomain = parsedUrl.hostname.split(".")[0];
+
+    if (!(await checkUrl(link))) {
+      suspiciousLinks.push(`${link} (Invalid URL)`);
+      continue;
+    }
+
+    const redirectTarget = await checkRedirect(link);
+    if (redirectTarget) {
+      const redirectEntry = `${brightPink}${link} (Redirects to: ${brightGreen}${redirectTarget}${reset}${brightPink})${reset}`;
+      suspiciousLinks.push(redirectEntry);
+      suspiciousRedirects.push(redirectEntry);
+      continue;
+    }
+
+    if (isSuspiciousSubdomain(targetUrl, subdomain)) {
+      suspiciousLinks.push(`${link} (Suspicious Subdomain)`);
+      continue;
+    }
+  }
+
+  fs.writeFileSync(suspiciousFile, suspiciousLinks.join("\n"), "utf-8");
+
+  console.log(`Suspicious links have been saved to ${suspiciousFile}`);
+  suspiciousLinks.forEach((link) => {
+    console.log(link);
+  });
+
+  if (suspiciousRedirects.length > 0) {
+    console.log("\nSuspicious Redirects:");
+    suspiciousRedirects.forEach((redirect) => {
+      console.log(redirect);
+    });
+  }
+
+  await browser.close();
+})();
